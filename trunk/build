@@ -1,2 +1,2 @@
-g++ JSON.c ServerMain.cpp ReqRep.cpp Socket.cpp Pipe.cpp ThreadPool.cpp -o dpc -std=c++0x -lpthread
-g++ main.cpp ReqRep.cpp JSON.c Socket.cpp Pipe.cpp -o test
+g++ JSON.c ServerMain.cpp ReqRep.cpp ReqRep_Handle.cpp Socket.cpp Pipe.cpp ThreadPool.cpp -o dpc -std=c++0x -lpthread
+g++ main.cpp ReqRep.cpp ReqRep_Handle.cpp JSON.c Socket.cpp Pipe.cpp -o test

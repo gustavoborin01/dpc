@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "Pipe.h"
-
+#include <pthread.h>
 #include <iostream>
-Pipe repo(1000);
+
 
 std::string ReplyGet::Serialize() const
 {
@@ -104,12 +104,6 @@ void RequestPut::Deserialize(const std::string & s)
     cJSON_Delete(root);
 }
 
-void RequestPut::Handle(TCPSocket &) const
-{
-    std::cout << "Hello Put" << std::endl;
-    repo.write(this->data);
-    
-}
 
 
 RequestGet::RequestGet(int num)
@@ -159,46 +153,46 @@ void RequestGet::Deserialize(const std::string & s)
     cJSON_Delete(root);
 }
 
-void RequestGet::Handle(TCPSocket & sock) const
+
+std::string ReportStatus::Serialize() const
 {
-    std::vector<int> integers;
-    repo.read(integers, this->num);
-    
-    ReplyGet rep(integers);
-    sock.sendString(rep.Serialize());
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "action", cJSON_CreateString("report"));
+    cJSON_AddItemToObject(root, "status", cJSON_CreateString(this->status.c_str()));
+
+    char * out = cJSON_Print(root);
+    std::string result = out;
+    cJSON_Delete(root);
+    free(out);
+    return result;
 }
 
-
-void Request::HandleRequest(TCPSocket & sock)
+void ReportStatus::Deserialize(const std::string & s)
 {
-    const int RCVBUFSIZE = 32;
-    std::string s;
-
-    char buffer[RCVBUFSIZE];
-    int recvSize;
-    while (s.find('}') == std::string::npos && ( (recvSize = sock.recv(buffer, RCVBUFSIZE - 1)) > 0)) 
+    cJSON * root = cJSON_Parse(s.c_str());
+    if (root != NULL)
     {
-        buffer[recvSize] = 0;
-        s += buffer;
-    }
-    
-    RequestGet reqg;
-    RequestPut reqp;
-    Request * reqs[] = {&reqg, &reqp};
-
-    for(int i=0; i < 2; i++)
-    {
-        try
-        {
-            std::cout << i << std::endl;
-            reqs[i]->Deserialize(s);
-            reqs[i]->Handle(sock);
-            return;
+        cJSON * act = cJSON_GetObjectItem(root, "action");
+        if (act == NULL || strcmp(act->valuestring, "report")){
+            cJSON_Delete(root);
+            throw SerializationError();
         }
-        catch (SerializationError&)
+        cJSON * item = cJSON_GetObjectItem(root, "status");
+        if(item != NULL)
         {
-            continue;
+            this->status = item->valuestring;
+        }
+        else
+        {
+            cJSON_Delete(root);
+            throw SerializationError();
         }
     }
-    throw SerializationError();
+    else
+    {
+        cJSON_Delete(root);
+        throw SerializationError();
+    }
+    cJSON_Delete(root);
 }
+
