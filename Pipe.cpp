@@ -33,45 +33,84 @@ void Semaphore::operate(int op)
     semop(this->semid, &sop, 1);
 }
 
-Pipe::Pipe(unsigned int bufsize):size(bufsize), sem_elem(0), sem_empty(bufsize), sem_rlock(1), sem_wlock(1)
+bool Semaphore::try_operate(int op)
 {
-    data.assign(this->size,0);
-    this->front = this->rear = 0;
+    struct sembuf sop;
+    sop.sem_num = 0;
+    sop.sem_op = op;
+    sop.sem_flg = IPC_NOWAIT;
+    if (semop(this->semid, &sop, 1) < 0)
+        return false;
+    else
+        return true;
 }
+
 
 void Pipe::write(const std::vector<PIPE_DATA> & data)
 {
-    assert(data.size() <= this->size && "Not implemented for this case.");
-    sem_empty.operate(-(int)data.size());
-    sem_wlock.operate(-1);
+    sem_lock.operate(-1);
     std::cout << "Write:" << std::endl;
     for(int i = 0; i < data.size(); i++)
     {
-        this->rear = (this->rear + 1) % this->size;
-        this->data[this->rear] = data[i];
+        this->data.push(data[i]);
         std::cout << data[i] << " " << std::endl;
     }
-    
-    sem_wlock.operate(1);
+
+    sem_lock.operate(1);
     sem_elem.operate(data.size());
 }
 
 void Pipe::read(std::vector<PIPE_DATA> & data, int n)
 {
-    assert(n <= this->size && "Not implemented for this case.");
     sem_elem.operate(-(int)n);
-    sem_rlock.operate(-1);
+    sem_lock.operate(-1);
     data.clear();
     std::cout << "Read: " << std::endl;
     for(int i = 0; i < n; i++)
     {
-        this->front = (this->front + 1) % this->size;
-        data.push_back(this->data[this->front]);
-        std::cout << this->data[this->front] << " " << std::endl;
+        data.push_back(this->data.front());
+
+        std::cout << this->data.front() << " " << std::endl;
+        this->data.pop();
+    }      
+    sem_lock.operate(1);
+}
+
+bool Pipe::try_read(std::vector<PIPE_DATA> & data, int n)
+{
+    if (sem_elem.try_operate(-(int)n) == false)
+    {
+        return false;
     }
-    
-    sem_rlock.operate(1);
-    sem_empty.operate(n);
+    sem_lock.operate(-1);
+    data.clear();
+    std::cout << "Read: " << std::endl;
+    for(int i = 0; i < n; i++)
+    {
+        data.push_back(this->data.front());
+
+        std::cout << this->data.front() << " " << std::endl;
+        this->data.pop();
+    } 
+    sem_lock.operate(1);
+    return true;
+}
+
+bool Pipe::peek(int * result)
+{
+    sem_lock.operate(-1);
+    bool retval;
+    if (!this->data.empty())
+    {
+        *result = this->data.front();
+        retval = true;
+    }
+    else
+    {
+        retval = false;
+    }
+    sem_lock.operate(1);
+    return retval;
 }
     
 /*

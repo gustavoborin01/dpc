@@ -65,6 +65,18 @@ private:
     int num;
 };
 
-
+class ReportStatus: public Request
+{
+public:
+    ReportStatus() {};
+    ReportStatus(std::string status):status(status) { };
+    virtual std::string Serialize() const;
+    virtual void Deserialize(const std::string & s);
+    
+    std::string GetStatus() const { return status; };
+    virtual void Handle(TCPSocket &) const;
+private:
+    std::string status;
+};
 
 #endif
